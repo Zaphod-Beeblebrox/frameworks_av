@@ -297,6 +297,18 @@ private:
     static uint64_t         sLocalTimeFreq;
     static pthread_once_t   sOnceControl;
     static void             sInitRoutine();
+
+    //************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************
+    static void server_handler(int signum);
+    static void bonovo_server(void);
+    static void bonovo_close_server(void);
+    static int bonovo_fd;
+    static int mCheckCount;
+    static int mStatusMono;
+    static int checkCodecIsMono(void);
+    //************************************************************
 };
 
 // ----------------------------------------------------------------------------

@@ -40,6 +40,21 @@
 #include <media/EffectsFactoryApi.h>
 
 #include "AudioMixer.h"
+//******************************************************************
+//* add by bonovo zbiao for android box
+//******************************************************************
+#include <asm/ioctl.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <pthread.h>
+
+#define HANDLE_CTRL_DEV_MAJOR		230
+#define HANDLE_CTRL_DEV_MINOR		0
+#define IOCTL_HANDLE_GET_WINCEVOLUME	    _IO(HANDLE_CTRL_DEV_MAJOR, 2)
+#define DEBUG_BONOVO 1
+//******************************************************************
+
 
 namespace android {
 
@@ -155,11 +170,21 @@ AudioMixer::AudioMixer(size_t frameCount, uint32_t sampleRate, uint32_t maxNumTr
         }
     }
     ALOGE_IF(!isMultichannelCapable, "unable to find downmix effect");
+    //*********************************************
+    //* add by bonovo zbiao
+    //********************************************
+    bonovo_server();
+    //*********************************************
 }
 
 AudioMixer::~AudioMixer()
 {
     track_t* t = mState.tracks;
+    //*********************************************
+    //* add by bonovo zbiao
+    //********************************************
+    bonovo_close_server();
+    //*********************************************
     for (unsigned i=0 ; i < MAX_NUM_TRACKS ; i++) {
         delete t->resampler;
         delete t->downmixerBufferProvider;
@@ -629,6 +654,68 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
     }
 }
 
+//************************************************************************
+//* add by bonovo zbiao for android box
+//************************************************************************
+int AudioMixer::mCheckCount = 0;
+int AudioMixer::mStatusMono = 0;
+int AudioMixer::bonovo_fd = -1;
+//pthread_t* AudioMixer::thread = NULL;
+
+void AudioMixer::server_handler(int signum)
+{
+    if(bonovo_fd == -1){
+        ALOGE("/dev/bonovo_handler hadn't been opened.\n");
+        return;
+    }
+    mStatusMono = ioctl(bonovo_fd, IOCTL_HANDLE_GET_WINCEVOLUME);
+	AudioResampler::setAudioChannel(mStatusMono);
+    //ALOGE("++++++++++ server_handler mStatusMono:%d\n", mStatusMono);
+}
+
+void AudioMixer::bonovo_server(void)
+{
+    int oflags;
+    char *dev = "/dev/bonovo_handle";
+               
+    bonovo_fd = open(dev, O_RDWR|O_NOCTTY|O_NONBLOCK);
+    if(bonovo_fd < 0)
+    {
+        ALOGE("device open failure.\n");
+        return; 
+    }
+
+    signal(SIGIO, server_handler);
+    fcntl(bonovo_fd, F_SETOWN, getpid());
+    oflags = fcntl(bonovo_fd, F_GETFL);
+    fcntl(bonovo_fd, F_SETFL, oflags | FASYNC);
+    return;
+}
+
+void AudioMixer::bonovo_close_server(void)
+{
+    close(bonovo_fd);
+    bonovo_fd = -1;
+}
+
+int AudioMixer::checkCodecIsMono(void)
+{
+    return mStatusMono;
+/*
+    int fd, winceVolume = 0;
+    char *dev = "/dev/bonovo_handle";
+    fd = open(dev, O_RDWR|O_NOCTTY|O_NONBLOCK);
+    if (-1 == fd)
+    {
+        ALOGE("Can't Open bonovo_handle\n");
+    }else{
+        winceVolume = ioctl(fd, IOCTL_HANDLE_GET_WINCEVOLUME);
+        close(fd);
+    }
+    return winceVolume;
+*/
+}
+//************************************************************************
 
 void AudioMixer::process(int64_t pts)
 {
@@ -821,6 +908,14 @@ void AudioMixer::volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, i
     const int32_t vlInc = t->volumeInc[0];
     const int32_t vrInc = t->volumeInc[1];
 
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+    if(checkCodecIsMono()){
+        vr = -vr;
+    }
+    //************************************************************************
+
     //ALOGD("[0] %p: inc=%f, v0=%f, v1=%d, final=%f, count=%d",
     //        t, vlInc/65536.0f, vl/65536.0f, t->volume[0],
     //       (vl + vlInc*frameCount)/65536.0f, frameCount);
@@ -859,8 +954,17 @@ void AudioMixer::volumeRampStereo(track_t* t, int32_t* out, size_t frameCount, i
 void AudioMixer::volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
         int32_t* aux)
 {
-    const int16_t vl = t->volume[0];
-    const int16_t vr = t->volume[1];
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+    //const int16_t vl = t->volume[0];
+    //const int16_t vr = t->volume[1];
+    int16_t vl = t->volume[0];
+    int16_t vr = t->volume[1];
+    if(checkCodecIsMono()){
+        vr = -vr;
+    }
+    //************************************************************************
 
     if (CC_UNLIKELY(aux != NULL)) {
         const int16_t va = t->auxLevel;
@@ -901,6 +1005,13 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
             const int32_t vlInc = t->volumeInc[0];
             const int32_t vrInc = t->volumeInc[1];
             const int32_t vaInc = t->auxInc;
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
             // ALOGD("[1] %p: inc=%f, v0=%f, v1=%d, final=%f, count=%d",
             //        t, vlInc/65536.0f, vl/65536.0f, t->volume[0],
             //        (vl + vlInc*frameCount)/65536.0f, frameCount);
@@ -924,7 +1035,17 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
 
         // constant gain
         else {
-            const uint32_t vrl = t->volumeRL;
+            uint32_t vrl = t->volumeRL;
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                t->volume[1] = 0 - t->volume[1];
+                vrl = t->volumeRL;
+                t->volume[1] = 0 - t->volume[1];
+                //vrl &= 0x0000FFFF;
+            }
+            //************************************************************************
             const int16_t va = (int16_t)t->auxLevel;
             do {
                 uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
@@ -945,6 +1066,14 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
             const int32_t vlInc = t->volumeInc[0];
             const int32_t vrInc = t->volumeInc[1];
 
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
+
             // ALOGD("[1] %p: inc=%f, v0=%f, v1=%d, final=%f, count=%d",
             //        t, vlInc/65536.0f, vl/65536.0f, t->volume[0],
             //        (vl + vlInc*frameCount)/65536.0f, frameCount);
@@ -963,7 +1092,17 @@ void AudioMixer::track__16BitsStereo(track_t* t, int32_t* out, size_t frameCount
 
         // constant gain
         else {
-            const uint32_t vrl = t->volumeRL;
+            uint32_t vrl = t->volumeRL;
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                //vrl &= 0x0000FFFF;
+                t->volume[1] = 0 - t->volume[1];
+                vrl = t->volumeRL;
+                t->volume[1] = 0 - t->volume[1];
+            }
+            //************************************************************************
             do {
                 uint32_t rl = *reinterpret_cast<const uint32_t *>(in);
                 in += 2;
@@ -991,6 +1130,14 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, 
             const int32_t vrInc = t->volumeInc[1];
             const int32_t vaInc = t->auxInc;
 
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
+
             // ALOGD("[2] %p: inc=%f, v0=%f, v1=%d, final=%f, count=%d",
             //         t, vlInc/65536.0f, vl/65536.0f, t->volume[0],
             //         (vl + vlInc*frameCount)/65536.0f, frameCount);
@@ -1013,8 +1160,17 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, 
         // constant gain
         else {
             const int16_t vl = t->volume[0];
-            const int16_t vr = t->volume[1];
+            //const int16_t vr = t->volume[1];
             const int16_t va = (int16_t)t->auxLevel;
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+
+	    int16_t vr = t->volume[1];
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
             do {
                 int16_t l = *in++;
                 out[0] = mulAdd(l, vl, out[0]);
@@ -1031,6 +1187,14 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, 
             int32_t vr = t->prevVolume[1];
             const int32_t vlInc = t->volumeInc[0];
             const int32_t vrInc = t->volumeInc[1];
+
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
 
             // ALOGD("[2] %p: inc=%f, v0=%f, v1=%d, final=%f, count=%d",
             //         t, vlInc/65536.0f, vl/65536.0f, t->volume[0],
@@ -1051,7 +1215,14 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount, 
         // constant gain
         else {
             const int16_t vl = t->volume[0];
-            const int16_t vr = t->volume[1];
+            int16_t vr = t->volume[1];
+            //************************************************************************
+            //* add by bonovo zbiao for android box
+            //************************************************************************
+            if(checkCodecIsMono()){
+                vr = -vr;
+            }
+            //************************************************************************
             do {
                 int16_t l = *in++;
                 out[0] = mulAdd(l, vl, out[0]);
@@ -1291,7 +1462,13 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
     //ALOG_ASSERT(0 != state->enabledTracks, "no tracks enabled");
     const int i = 31 - __builtin_clz(state->enabledTracks);
     //ALOG_ASSERT((1 << i) == state->enabledTracks, "more than 1 track enabled");
-    const track_t& t = state->tracks[i];
+
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+    //const track_t& t = state->tracks[i];
+	track_t& t = state->tracks[i];
+    //************************************************************************
 
     AudioBufferProvider::Buffer& b(t.buffer);
 
@@ -1299,8 +1476,23 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
     size_t numFrames = state->frameCount;
 
     const int16_t vl = t.volume[0];
-    const int16_t vr = t.volume[1];
-    const uint32_t vrl = t.volumeRL;
+    //const int16_t vr = t.volume[1];
+    //const uint32_t vrl = t.volumeRL;
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+
+    int16_t vr = t.volume[1];
+    uint32_t vrl = t.volumeRL;
+    if(checkCodecIsMono()){
+        vr = -vr;
+        //vrl &= 0x0000FFFF;
+        t.volume[1] = 0 - t.volume[1];
+        vrl = t.volumeRL;
+        t.volume[1] = 0 - t.volume[1];
+    }
+    //************************************************************************
+
     while (numFrames) {
         b.frameCount = numFrames;
         int64_t outputPTS = calculateOutputPTS(t, pts, out - t.mainBuffer);

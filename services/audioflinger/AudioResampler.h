@@ -76,6 +76,14 @@ public:
     // called from destructor, so must not be virtual
     src_quality getQuality() const { return mQuality; }
 
+    //****************************************************
+    //* add by bonovo zbiao
+    //****************************************************
+    static int mStatusMono;
+    static void setAudioChannel(int status) {mStatusMono = status;}
+    static int isMono(void);
+    //****************************************************
+
 protected:
     // number of bits for phase fraction - 30 bits allows nearly 2x downsampling
     static const int kNumPhaseBits = 30;

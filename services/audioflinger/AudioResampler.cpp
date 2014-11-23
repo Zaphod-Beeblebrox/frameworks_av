@@ -147,6 +147,16 @@ static const uint32_t maxMHz = 130; // an arbitrary number that permits 3 VHQ, s
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t currentMHz = 0;
 
+//********************************
+//* add by bonovo zbiao
+//********************************
+int AudioResampler::mStatusMono = 0;
+int AudioResampler::isMono(void)
+{
+    return mStatusMono;
+}
+//********************************
+
 AudioResampler* AudioResampler::create(int bitDepth, int inChannelCount,
         int32_t sampleRate, src_quality quality) {
 
@@ -341,6 +351,14 @@ void AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount,
     size_t outputSampleCount = outFrameCount * 2;
     size_t inFrameCount = (outFrameCount*mInSampleRate)/mSampleRate;
 
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+	if(isMono()){
+        vr = -vr;
+	}
+    //************************************************************************
+
     // ALOGE("starting resample %d frames, inputIndex=%d, phaseFraction=%d, phaseIncrement=%d",
     //      outFrameCount, inputIndex, phaseFraction, phaseIncrement);
 
@@ -430,6 +448,14 @@ void AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
 
     int32_t vl = mVolume[0];
     int32_t vr = mVolume[1];
+
+    //************************************************************************
+    //* add by bonovo zbiao for android box
+    //************************************************************************
+	if(isMono()){
+        vr = -vr;
+    }
+    //************************************************************************
 
     size_t inputIndex = mInputIndex;
     uint32_t phaseFraction = mPhaseFraction;
