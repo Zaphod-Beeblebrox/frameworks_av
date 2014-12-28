@@ -23,8 +23,6 @@ LOCAL_SRC_FILES:=               \
     StagefrightRecorder.cpp     \
     TestPlayerStub.cpp          \
     ApePlayer.cpp               \
-    FFPlayer.cpp                \
-    RKBOXFFPlayer.cpp           \
 
 LOCAL_CFLAGS := -DAVS44
 
@@ -37,8 +35,6 @@ LOCAL_SHARED_LIBRARIES :=       \
     libgui                      \
     libmedia                    \
     libsonivox                  \
-    librkffplayer               \
-    librkboxffplayer            \
     libstagefright              \
     libstagefright_foundation   \
     libstagefright_httplive     \
@@ -52,8 +48,11 @@ LOCAL_SHARED_LIBRARIES :=       \
 LOCAL_STATIC_LIBRARIES :=       \
     libstagefright_nuplayer     \
     libstagefright_rtsp         \
+    libstagefright_urlcheck     \
+
 
 LOCAL_C_INCLUDES :=                                                 \
+    external/mac                                                    \
     $(call include-path-for, graphics corecg)                       \
     $(TOP)/frameworks/av/media/libstagefright/include               \
     $(TOP)/frameworks/av/media/libstagefright/rtsp                  \
@@ -64,26 +63,9 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/av/media/libstagefright/libvpu/common         \
     $(TOP)/frameworks/av/media/libstagefright/libvpu/common/include \
     $(TOP)/hardware/rk29/libon2                                     \
-    $(LOCAL_PATH)/rk_ffplayer                                       \
-    $(LOCAL_PATH)/rkbox_ffplayer                                    \
-
-ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
-    LOCAL_C_INCLUDES += \
-        $(call project-path-for,qcom-media)/mm-core/inc
-endif
+    $(LOCAL_PATH)/urlcheck                                          \
 
 LOCAL_MODULE:= libmediaplayerservice
-
-ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
-    LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
-    LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include/media
-    LOCAL_C_INCLUDES += \
-        $(call project-path-for,qcom-media)/mm-core/inc
-endif #TARGET_ENABLE_QC_AV_ENHANCEMENTS
-
-ifeq ($(TARGET_BOARD_PLATFORM),msm7x27a)
-    LOCAL_CFLAGS += -DUSE_SUBMIT_ONE_INPUT_BUFFER
-endif
 
 include $(BUILD_SHARED_LIBRARY)
 
