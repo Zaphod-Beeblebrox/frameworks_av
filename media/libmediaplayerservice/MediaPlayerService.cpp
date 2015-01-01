@@ -804,23 +804,6 @@ status_t MediaPlayerService::Client::invoke(const Parcel& request,
     return p->invoke(request, reply);
 }
 
-status_t MediaPlayerService::Client::isBluray()
-{
-    ALOGV("MediaPlayerService: isBluray");
-    sp<MediaPlayerBase> p = getPlayer();
-    if (p == NULL)
-    {
-        return 1;
-    }
-    ALOGV("MediaPlayerService: p->playerType = %d",p->playerType());
-    if(p->playerType() == RKBOXFF_PLAYER)
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
 // This call doesn't need to access the native player.
 status_t MediaPlayerService::Client::setMetadataFilter(const Parcel& filter)
 {

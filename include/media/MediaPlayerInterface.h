@@ -56,7 +56,6 @@ enum player_type {
     DASH_PLAYER = 6,
     APE_PLAYER = 7,
     FF_PLAYER = 8,
-    RKBOXFF_PLAYER = 9,
 };
 
 

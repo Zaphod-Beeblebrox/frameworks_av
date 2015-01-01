@@ -106,8 +106,6 @@ public:
     // Init the audio decoder and the video decoder
     // @return OK if the video player was resumed successfully
     virtual status_t        resume() = 0;
-
-    virtual status_t        isBluray() = 0;
 };
 
 // ----------------------------------------------------------------------------

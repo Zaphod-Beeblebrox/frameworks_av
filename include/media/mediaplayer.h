@@ -229,8 +229,6 @@ public:
             void            died();
             void            disconnect();
 
-            status_t        isBluray();
-
             status_t        setDataSource(
                     const char *url,
                     const KeyedVector<String8, String8> *headers);

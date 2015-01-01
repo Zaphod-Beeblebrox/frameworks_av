@@ -34,7 +34,6 @@
 
 #include "ApePlayer.h"
 #include "FFPlayer.h"
-#include "RKBOXFFPlayer.h"
 
 namespace android {
 
@@ -417,61 +416,6 @@ class ApePlayerFactory :
     }
 };
 
-class FFPlayerFactory :
-    public MediaPlayerFactory::IFactory {
-
- public:
-    virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                                       const char* url,
-                                       float curScore){
-        static const float kOurScore = 0.9;
-        if (!strncasecmp("http://", url, 7)
-                || !strncasecmp("https://", url, 8)
-                || !strncasecmp("rtsp://", url, 7)){
-            char value[PROPERTY_VALUE_MAX];
-            if((property_get("sys.cts_gts.status", value, NULL))
-                &&(strstr(value, "true"))){
-                return 0.0;
-            }
-            return kOurScore;
-        }
-        return 0.0;
-    }
-    virtual sp<MediaPlayerBase> createPlayer() {
-        ALOGI(" create FFPlayer");
-        return new FFPlayer();
-    }
-
-};
-class RKBOXFFPlayerFactory :
-        public MediaPlayerFactory::IFactory {
-public:
-    virtual float scoreFactory(const sp<IMediaPlayer>& client,
-                               int fd,
-                               int64_t offset,
-                               int64_t length,
-                               float curScore) {
-        String8 filePath;
-        getFileName(fd,&filePath);
-        filePath.toLower();
-
-        char value[PROPERTY_VALUE_MAX];
-        if (property_get("video.support.bluray", value, "no") && (strcmp("yes", value) == 0))
-        {
-            if(strstr(filePath.string(),".iso"))
-            {
-                return 1.0;
-            }
-        }
-        return 0.0;
-    }
-
-    virtual sp<MediaPlayerBase> createPlayer() {
-        ALOGI(" create RKBOXFFPlayer");
-        return new RKBOXFFPlayer();
-    }
-};
-
 void MediaPlayerFactory::registerBuiltinFactories() {
     Mutex::Autolock lock_(&sLock);
 
@@ -483,8 +427,6 @@ void MediaPlayerFactory::registerBuiltinFactories() {
     registerFactory_l(new SonivoxPlayerFactory(), SONIVOX_PLAYER);
     registerFactory_l(new TestPlayerFactory(), TEST_PLAYER);
     registerFactory_l(new ApePlayerFactory(),APE_PLAYER);
-    registerFactory_l(new FFPlayerFactory(),FF_PLAYER);
-    registerFactory_l(new RKBOXFFPlayerFactory(),RKBOXFF_PLAYER);
 
     const char* FACTORY_LIB           = "libdashplayer.so";
     const char* FACTORY_CREATE_FN     = "CreateDASHFactory";
